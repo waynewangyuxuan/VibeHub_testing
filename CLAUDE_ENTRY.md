@@ -80,8 +80,9 @@ vibehub-testing/
   CLAUDE_ENTRY.md          # 本文件
 
   prompts/                 # Claude skill / prompt 模板
-    skill.pr_review.v1.md
-    skill.feature_dev.v1.md
+    skill.session_prep.v1.md      # 准备阶段 skill
+    skill.session_start.v1.md     # 开 session skill
+    skill.session_execute.v1.md   # 执行 session skill
     ...（慢慢加）
 
   templates/               # 可复制的 markdown 模板
@@ -89,12 +90,12 @@ vibehub-testing/
     project_session.md
     feature_session.md
 
-  sessions/                # 具体某次"我要干活"的 session
-    2025-12-06-sunset-pipeline.md
-    ...
-
-  prep/                    # session 准备文件（可选，也可以直接放 sessions/）
-    2025-12-06-sunset-prep.md
+  sessions/                # 每个 session 一个文件夹
+    2025-12-06-1430-sunset-pipeline/
+      prep/                # prep 阶段的工作区
+        raw_dump.md        # 原始信息整理
+        to_upload/         # 待上传到 Drive 的内容
+      session.md           # 正式的 session 文件
     ...
 ```
 
@@ -112,67 +113,68 @@ vibehub-testing/
 ## 5. Claude：当我在这个 repo 里找你时，你要怎么做？
 
 > 下面是给 Claude 的行为约定。
+>
+> **核心 Skills（详见 `prompts/` 目录）：**
+>
+> | Skill | 使用位置 | 用途 |
+> |-------|----------|------|
+> | `skill.session_prep.v1.md` | vibehub | 整理零散信息（可选） |
+> | `skill.session_start.v1.md` | vibehub | 生成启动 prompt |
+> | `skill.session_execute.v1.md` | **项目 repo** | 配合启动 prompt 干活 |
 
 ### 5.0 当我说「我有一堆东西要整理」或「帮我准备一个 session」时
 
-这是 **session 前的 intake 阶段**。典型入口：
+**→ 使用 `skill.session_prep.v1.md`**（可选步骤）
 
-> 我有一堆关于 XXX 的信息/文件/想法，帮我整理一下，然后我们再正式开 session。
+这是 **session 前的 intake 阶段**。
 
 你（Claude）应该：
 
-1. 基于 `templates/session_prep.md` 创建一个 prep 文件。
-2. 让我把零散信息 dump 到「第 1 节」。
-3. 帮我：
-   - **分类整理**：提取核心概念、参考资料、待办事项、不确定项
-   - **建议 Drive 结构**：这些东西应该怎么放到 Drive 里
-   - **生成待上传内容**：比如项目 README、整理好的笔记
-4. 等我确认 Drive 结构后，告诉我要上传什么、放哪里。
-5. 上传完成后，**自动生成正式的 `project_session.md`**，里面的 `drive_search_hints` 就是刚整理好的路径。
+1. 创建 session 文件夹：`sessions/{timestamp}-{project}/`
+2. 在 `prep/` 子目录下整理信息
+3. 帮我分类、建议 Drive 结构、生成待上传内容
+4. 完成后进入 `skill.session_start` 生成启动 prompt
 
-**流程图：**
+**文件夹结构：**
 ```
-零散信息 → session_prep.md → 整理 & 上传 Drive → project_session.md → 开始干活
+sessions/2025-12-06-1430-sunset/
+  prep/
+    raw_dump.md
+    to_upload/
+  session.md    # 下一步生成
 ```
 
 ### 5.1 当我说「我要在某个项目上开一个 session」时
 
-典型对话入口会像这样（我说）：
-
-> 我现在想开始搞一个叫"sunset-pipeline"的东西。
-> 请你帮我在 `templates/project_session.md` 的基础上，
-> 生成一个适合这个项目的 session 文件内容，我会存到 `sessions/2025-12-06-sunset-pipeline.md` 里。
+**→ 使用 `skill.session_start.v1.md`**
 
 你（Claude）应该：
 
-1. 阅读 `CLAUDE_ENTRY.md` 和 `templates/project_session.md`。
-2. 问我几个最关键的问题（如果你需要的话），比如：
-   * 这个项目的名字 / 代号
-   * 我大概记得它在 Drive 里有什么线索（关键词 / 大概路径）
-3. 在当前对话中生成一份填写好的 `project_session.md` 内容，包括：
-   * `session_id` / `project_handle`
-   * 初始的 `drive_search_hints`
-   * 第 3 节「Claude：请你做的第一步」里你打算怎么搜 / 看
-4. 把这份 markdown 输出给我，让我复制到 `sessions/xxxx.md` 文件里。
+1. 如果已有 prep，从 `prep/raw_dump.md` 提取信息
+2. 如果没有 prep，通过对话问我几个关键问题
+3. 生成 `session.md`
+4. **输出「启动 Prompt」**——这是核心产出，用户会复制到项目 repo 使用
 
-### 5.2 当我已经有一个 session 文件，并把它贴给你 / 附给你的时候
+**流程：**
+```
+vibehub-testing                      实际项目 repo
+───────────────                      ──────────────
+1. (可选) prep
+2. session_start
+3. 生成启动 prompt  ─────────────→   4. 用户贴入启动 prompt
+                                      5. 配合 session_execute 干活
+```
 
-如果我说：
+### 5.2 关于 `skill.session_execute.v1.md`
 
-> 这是 `sessions/2025-12-06-sunset-pipeline.md` 的最新内容，
-> 里面有「Drive 搜索线索」，你按照里面的指示，帮我真正开始做事。
+**注意：这个 skill 是在实际项目 repo 里使用的，不是在 vibehub 里。**
 
-你应该：
+它定义了 Claude 在项目 repo 里的工作方式：
+- 先理解，再行动
+- 制定计划，逐步执行
+- 保持沟通，及时汇报
 
-1. 阅读 session 内容，**严格按照里面写好的流程** 来：
-   * 设计你在 Drive 里的搜索策略
-   * 告诉我「接下来你需要我从 Drive 打开的文档/搜索结果」
-2. 当你想改 Drive（创建/重命名/移动/拆文档）时：
-   * 先在 session 的「第 6 节」里写出**计划中的改动列表**
-   * 让我确认
-   * 再让我去 Drive 里实际执行（或者用集成功能）
-3. 每次重要改动之后：
-   * 把「第 6 节」里对应项打勾，并追加简短说明（你帮我生成文本，我复制回去）
+用户会把这个 skill 复制到项目 repo，或者启动 prompt 里会引用它。
 
 ### 5.3 你也可以帮我维护 prompts/skills
 
